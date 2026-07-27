@@ -54,7 +54,7 @@ const NAV = [
     /* ── header ── */
     .nav-header { padding:20px 14px 14px; border-bottom:1px solid rgba(255,255,255,0.07); }
 
-    .brand { display:flex; align-items:center; gap:10px; margin-bottom:18px; }
+    .brand { display:flex; align-items:center; gap:10px; margin-bottom:18px; cursor:pointer; text-decoration:none; }
 
     .brand-icon {
       width:34px; height:34px;
@@ -170,10 +170,10 @@ const NAV = [
       <mat-sidenav #sidenav [mode]="isMobile() ? 'over' : 'side'" [opened]="!isMobile()">
 
         <div class="nav-header">
-          <div class="brand">
+          <a class="brand" routerLink="/farms">
             <div class="brand-icon"><mat-icon>eco</mat-icon></div>
             <span class="brand-name">FincaApp</span>
-          </div>
+          </a>
 
           <div class="farm-label">Finca activa</div>
           <button class="farm-btn" [matMenuTriggerFor]="farmMenu">
