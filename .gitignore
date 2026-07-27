@@ -1,0 +1,41 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Environment / secrets
+.env
+.env.local
+*.env
+!.env.example
+!**/.env.example
+
+# Build output
+dist/
+**/dist/
+/frontend/.angular/cache
+build/
+
+# Logs
+*.log
+npm-debug.log*
+
+# Prisma
+**/prisma/dev.db
+
+# IDE / OS
+.vscode/*
+!.vscode/settings.json
+!.vscode/tasks.json
+!.vscode/launch.json
+!.vscode/extensions.json
+.idea/
+.DS_Store
+Thumbs.db
+
+# Testing / coverage
+coverage/
+.nyc_output/
+
+# Kubernetes local secrets (real values, never commit)
+k8s/**/secret.yaml
+!k8s/**/secret.example.yaml
