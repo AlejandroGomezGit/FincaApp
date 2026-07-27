@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: core-api
+  namespace: fincaapp
+  labels:
+    app: core-api
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: core-api }
+  template:
+    metadata:
+      labels: { app: core-api }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+        - name: core-api
+          image: fincaapp-core-api:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 4000
+            - name: internal
+              containerPort: 4011
+          env:
+            - name: PORT
+              value: "4000"
+            - name: INTERNAL_PORT
+              value: "4011"
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: fincaapp-secrets, key: DATABASE_URL } }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: fincaapp-secrets, key: JWT_SECRET } }
+            - name: INTERNAL_SERVICE_TOKEN
+              valueFrom: { secretKeyRef: { name: fincaapp-secrets, key: INTERNAL_SERVICE_TOKEN } }
+            - name: CORS_ORIGINS
+              valueFrom: { configMapKeyRef: { name: fincaapp-config, key: CORS_ORIGINS } }
+            - name: LOG_LEVEL
+              valueFrom: { configMapKeyRef: { name: fincaapp-config, key: LOG_LEVEL } }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false # Prisma escribe un socket temporal; ver ARCHITECTURE.md
+            capabilities: { drop: ["ALL"] }
+          readinessProbe:
+            httpGet: { path: /ready, port: http }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "150m", memory: "192Mi" }
+            limits: { cpu: "750m", memory: "384Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: core-api
+  namespace: fincaapp
+spec:
+  selector: { app: core-api }
+  ports:
+    - name: http
+      port: 4000
+      targetPort: http
+    - name: internal
+      port: 4011
+      targetPort: internal
+    # El puerto "internal" queda alcanzable dentro del clúster vía este mismo
+    # Service (core-api:4011) porque weather-service lo necesita, pero el
+    # Ingress (ingress.yaml) solo enruta al puerto "http" — y NetworkPolicy
+    # (networkpolicy.yaml) restringe quién puede llegar a "internal".
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: core-api
+  namespace: fincaapp
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: core-api
+  minReplicas: 2
+  maxReplicas: 8
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }

@@ -1,0 +1,200 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// core-api es el único dueño de las migraciones (prisma db push/migrate) de
+// toda la base de datos, incluida esta tabla — aunque en tiempo de ejecución
+// nunca la consulta directamente (ese es el trabajo de auth-service). Se
+// mantiene declarada aquí solo para preservar la integridad referencial
+// (Farm.userId) y el historial de esquema en un único lugar.
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("USER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  farms         Farm[]
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique
+  userId    Int
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model Farm {
+  id               Int       @id @default(autoincrement())
+  name             String
+  location         String?
+  description      String?
+  hectares         Float?
+  lat              Float?
+  lng              Float?
+  locationResolved String?
+  geocodedAt       DateTime?
+  userId           Int
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  crops        Crop[]
+  workers      Worker[]
+  transactions Transaction[]
+}
+
+model Crop {
+  id                    Int        @id @default(autoincrement())
+  name                  String
+  type                  CropType
+  farmId                Int
+  hectares              Float?
+  plantingDate          DateTime?
+  expectedHarvestDate   DateTime?
+  status                CropStatus @default(ACTIVE)
+  notes                 String?
+  createdAt             DateTime   @default(now())
+  updatedAt             DateTime   @updatedAt
+
+  farm                Farm                @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  activities          Activity[]
+  harvestProjections  HarvestProjection[]
+  transactions        Transaction[]
+}
+
+model Activity {
+  id          Int            @id @default(autoincrement())
+  name        String
+  category    ActivityCategory
+  cropId      Int
+  startDate   DateTime
+  endDate     DateTime?
+  status      ActivityStatus @default(IN_PROGRESS)
+  description String?
+  createdAt   DateTime       @default(now())
+  updatedAt   DateTime       @updatedAt
+
+  crop     Crop      @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  jornales Jornal[]
+}
+
+model Worker {
+  id        Int      @id @default(autoincrement())
+  name      String
+  phone     String?
+  idNumber  String?
+  farmId    Int
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  farm     Farm     @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  jornales Jornal[]
+}
+
+model Jornal {
+  id         Int      @id @default(autoincrement())
+  workerId   Int
+  activityId Int
+  date       DateTime
+  days       Float    @default(1)
+  dailyValue Float
+  notes      String?
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  worker   Worker   @relation(fields: [workerId], references: [id], onDelete: Cascade)
+  activity Activity @relation(fields: [activityId], references: [id], onDelete: Cascade)
+}
+
+model Transaction {
+  id          Int             @id @default(autoincrement())
+  farmId      Int
+  cropId      Int?
+  type        TransactionType
+  category    TransactionCategory
+  amount      Float
+  date        DateTime
+  description String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  farm Farm  @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  crop Crop? @relation(fields: [cropId], references: [id], onDelete: SetNull)
+}
+
+model HarvestProjection {
+  id                 Int      @id @default(autoincrement())
+  cropId             Int
+  projectedDate      DateTime
+  projectedQuantity  Float
+  actualQuantity     Float?
+  unit               String   @default("kg")
+  unitPrice          Float?
+  notes              String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+
+  crop Crop @relation(fields: [cropId], references: [id], onDelete: Cascade)
+}
+
+enum CropType {
+  CAFE
+  PLATANO
+  YUCA
+  MAIZ
+  AGUACATE
+  FRIJOL
+  OTRO
+}
+
+enum CropStatus {
+  ACTIVE
+  HARVESTED
+  INACTIVE
+}
+
+enum ActivityCategory {
+  SIEMBRA
+  FERTILIZACION
+  FUMIGACION
+  PODA
+  COSECHA
+  MANTENIMIENTO
+  RIEGO
+  OTRO
+}
+
+enum ActivityStatus {
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum TransactionType {
+  INCOME
+  EXPENSE
+}
+
+enum TransactionCategory {
+  VENTA_COSECHA
+  INSUMOS
+  MAQUINARIA
+  SERVICIOS_EXTERNOS
+  JORNALES
+  TRANSPORTE
+  OTRO
+}

@@ -1,0 +1,40 @@
+# Job de un solo uso: aplica el schema de Prisma contra Postgres. A propósito
+# NO está en kustomization.yaml (los Jobs son inmutables — reaplicar con
+# `kubectl apply -k` fallaría en el segundo intento). Se aplica a mano después
+# de que Postgres y el Secret ya existan, y antes de levantar los servicios
+# por primera vez (o después de un cambio de schema.prisma):
+#
+#   kubectl apply -f k8s/base/migrate-job.yaml
+#   kubectl wait --for=condition=complete job/db-migrate -n fincaapp --timeout=60s
+#   kubectl delete job/db-migrate -n fincaapp   # limpia antes de la próxima corrida
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: db-migrate
+  namespace: fincaapp
+spec:
+  backoffLimit: 3
+  template:
+    metadata:
+      # Mismo label que el Deployment de core-api: es la identidad que
+      # NetworkPolicy (allow-db-clients-to-postgres) usa para autorizar el
+      # acceso a Postgres — sin esto, el Job quedaría bloqueado por defecto.
+      labels:
+        app: core-api
+    spec:
+      restartPolicy: Never
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+      containers:
+        - name: migrate
+          image: fincaapp-core-api:latest
+          imagePullPolicy: IfNotPresent
+          command: ["npx", "prisma", "db", "push", "--skip-generate"]
+          env:
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: fincaapp-secrets, key: DATABASE_URL } }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }

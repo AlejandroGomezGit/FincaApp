@@ -1,0 +1,84 @@
+# Estas políticas solo restringen INGRESS (quién puede conectarse a cada pod),
+# no egress — así no hay riesgo de romper por accidente las llamadas salientes
+# de weather-service a Open-Meteo o la resolución DNS. Restringir egress
+# también es un buen siguiente paso, pero requiere permitir explícitamente
+# DNS (puerto 53) y HTTPS saliente, y no aporta tanto a la historia de
+# seguridad de este proyecto como sí lo hace mostrar la frontera de datos
+# entre servicios (el punto central: weather-service nunca debe poder tocar
+# Postgres, ni nadie fuera del clúster debe poder tocar el puerto interno de
+# core-api).
+#
+# El namespaceSelector de "desde el Ingress controller" asume la instalación
+# estándar de ingress-nginx (namespace "ingress-nginx" con el label
+# automático kubernetes.io/metadata.name). Ajusta el selector si tu clúster
+# usa otro Ingress controller o namespace.
+
+# 1) Por defecto, nada entra a ningún pod de este namespace salvo que otra
+#    política lo permita explícitamente.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: default-deny-ingress
+  namespace: fincaapp
+spec:
+  podSelector: {}
+  policyTypes: ["Ingress"]
+---
+# 2) El Ingress controller puede llegar al frontend y al puerto público de
+#    los tres servicios (nunca al puerto interno de core-api).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-ingress-controller
+  namespace: fincaapp
+spec:
+  podSelector:
+    matchExpressions:
+      - { key: app, operator: In, values: ["frontend", "auth-service", "weather-service", "core-api"] }
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: ingress-nginx
+      ports:
+        - { protocol: TCP, port: 8080 } # frontend
+        - { protocol: TCP, port: 4001 } # auth-service
+        - { protocol: TCP, port: 4002 } # weather-service
+        - { protocol: TCP, port: 4000 } # core-api (público)
+---
+# 3) Solo weather-service puede llegar al puerto INTERNO de core-api (4011).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-weather-to-core-api-internal
+  namespace: fincaapp
+spec:
+  podSelector:
+    matchLabels: { app: core-api }
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels: { app: weather-service }
+      ports:
+        - { protocol: TCP, port: 4011 }
+---
+# 4) Solo auth-service y core-api pueden llegar a Postgres — explícitamente
+#    NO weather-service, que nunca debería tocar la base de datos.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: allow-db-clients-to-postgres
+  namespace: fincaapp
+spec:
+  podSelector:
+    matchLabels: { app: postgres }
+  policyTypes: ["Ingress"]
+  ingress:
+    - from:
+        - podSelector:
+            matchExpressions:
+              - { key: app, operator: In, values: ["auth-service", "core-api"] }
+      ports:
+        - { protocol: TCP, port: 5432 }

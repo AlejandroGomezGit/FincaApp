@@ -1,0 +1,46 @@
+# Equivalente en Kubernetes de services/gateway/nginx.conf: mismo enrutamiento
+# por path, pero resuelto por el Ingress controller (nginx-ingress) en vez de
+# un contenedor de gateway aparte — es el patrón idiomático en k8s, así que
+# aquí NO se despliega el contenedor "gateway" de docker-compose.
+#
+# Requiere ingress-nginx instalado en el clúster:
+#   kubectl apply -f https://raw.githubusercontent.com/kubernetes/ingress-nginx/controller-v1.11.3/deploy/static/provider/cloud/deploy.yaml
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: fincaapp
+  namespace: fincaapp
+  annotations:
+    nginx.ingress.kubernetes.io/use-regex: "true"
+    nginx.ingress.kubernetes.io/ssl-redirect: "false" # el TLS real se termina en el LoadBalancer/CDN delante del Ingress
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: fincaapp.example.com
+      http:
+        paths:
+          # auth-service: registro, login, refresh, RBAC.
+          - path: /api/auth
+            pathType: Prefix
+            backend:
+              service: { name: auth-service, port: { number: 4001 } }
+
+          # weather-service: clima/recomendaciones de una finca puntual.
+          # Debe listarse antes que la regla genérica /api (ver nginx.conf
+          # para la explicación de por qué el regex gana sobre el prefijo).
+          - path: /api/farms/[0-9]+/weather.*
+            pathType: ImplementationSpecific
+            backend:
+              service: { name: weather-service, port: { number: 4002 } }
+
+          # core-api: todo lo demás bajo /api.
+          - path: /api
+            pathType: Prefix
+            backend:
+              service: { name: core-api, port: { number: 4000 } }
+
+          # Frontend Angular.
+          - path: /
+            pathType: Prefix
+            backend:
+              service: { name: frontend, port: { number: 80 } }

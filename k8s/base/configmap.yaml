@@ -1,0 +1,20 @@
+# Configuración no sensible, compartida entre servicios. Los secretos
+# (DATABASE_URL, JWT_SECRET, INTERNAL_SERVICE_TOKEN, contraseña de Postgres)
+# viven aparte en un Secret — ver secret.example.yaml.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fincaapp-config
+  namespace: fincaapp
+data:
+  CORS_ORIGINS: "https://fincaapp.example.com"
+  LOG_LEVEL: "info"
+  JWT_ACCESS_EXPIRY: "15m"
+  JWT_REFRESH_EXPIRY_DAYS: "7"
+  AUTH_SERVICE_PORT: "4001"
+  WEATHER_SERVICE_PORT: "4002"
+  CORE_API_PORT: "4000"
+  CORE_API_INTERNAL_PORT: "4011"
+  CORE_API_INTERNAL_URL: "http://core-api:4011"
+  POSTGRES_DB: "finca_app"
+  POSTGRES_USER: "fincaapp"

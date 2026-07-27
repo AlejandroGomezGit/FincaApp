@@ -1,0 +1,81 @@
+# Postgres como Deployment + PVC de un solo réplica: sirve para desarrollo y
+# demo de este manifiesto, PERO no es apto para producción tal cual (sin HA,
+# sin backups, sin réplicas de lectura). En un clúster real esto se
+# reemplazaría por una base gestionada (RDS, Cloud SQL, etc.) o por un
+# operador dedicado (CloudNativePG, Zalando's postgres-operator).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: postgres
+  namespace: fincaapp
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate # evita dos pods montando el mismo PVC RWO a la vez
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              valueFrom:
+                configMapKeyRef: { name: fincaapp-config, key: POSTGRES_DB }
+            - name: POSTGRES_USER
+              valueFrom:
+                configMapKeyRef: { name: fincaapp-config, key: POSTGRES_USER }
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef: { name: fincaapp-secrets, key: POSTGRES_PASSWORD }
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+              subPath: postgres # evita el error "lost+found no vacío" en algunos storage class
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "fincaapp", "-d", "finca_app"]
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          livenessProbe:
+            exec:
+              command: ["pg_isready", "-U", "fincaapp", "-d", "finca_app"]
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "500m", memory: "512Mi" }
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: postgres-data
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: fincaapp
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 2Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: fincaapp
+spec:
+  selector:
+    app: postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

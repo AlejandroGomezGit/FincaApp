@@ -1,0 +1,122 @@
+name: fincaapp
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: finca_app
+      POSTGRES_USER: fincaapp
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-fincaapp_dev_password}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Sin "ports:" a propósito: solo los servicios de esta red interna
+    # ("fincaapp") necesitan hablarle a Postgres. Si necesitas conectarte
+    # desde el host (psql, un cliente gráfico), publica 5432 temporalmente
+    # o usa `docker compose exec postgres psql -U fincaapp finca_app`.
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fincaapp -d finca_app"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [fincaapp]
+
+  # Aplica el schema de Prisma una sola vez y termina — evita que cada
+  # servicio intente correr migraciones por su cuenta (core-api es el único
+  # dueño del esquema; ver services/core-api/prisma/schema.prisma).
+  migrate:
+    build: ./services/core-api
+    command: npx prisma db push --skip-generate
+    environment:
+      DATABASE_URL: postgresql://fincaapp:${POSTGRES_PASSWORD:-fincaapp_dev_password}@postgres:5432/finca_app
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [fincaapp]
+
+  auth-service:
+    build: ./services/auth-service
+    environment:
+      DATABASE_URL: postgresql://fincaapp:${POSTGRES_PASSWORD:-fincaapp_dev_password}@postgres:5432/finca_app
+      JWT_SECRET: ${JWT_SECRET:?Debes definir JWT_SECRET en .env}
+      JWT_ACCESS_EXPIRY: 15m
+      JWT_REFRESH_EXPIRY_DAYS: 7
+      PORT: 4001
+      CORS_ORIGINS: http://localhost:8080
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4001/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [fincaapp]
+
+  core-api:
+    build: ./services/core-api
+    environment:
+      DATABASE_URL: postgresql://fincaapp:${POSTGRES_PASSWORD:-fincaapp_dev_password}@postgres:5432/finca_app
+      JWT_SECRET: ${JWT_SECRET:?Debes definir JWT_SECRET en .env}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Debes definir INTERNAL_SERVICE_TOKEN en .env}
+      PORT: 4000
+      INTERNAL_PORT: 4011
+      CORS_ORIGINS: http://localhost:8080
+      LOG_LEVEL: info
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [fincaapp]
+    # El puerto 4011 (interno) NO se publica al host ni se expone por el
+    # gateway — solo es alcanzable por otros contenedores en la red
+    # "fincaapp" (en este caso, weather-service). Ver internalApp.js.
+
+  weather-service:
+    build: ./services/weather-service
+    environment:
+      JWT_SECRET: ${JWT_SECRET:?Debes definir JWT_SECRET en .env}
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Debes definir INTERNAL_SERVICE_TOKEN en .env}
+      CORE_API_INTERNAL_URL: http://core-api:4011
+      PORT: 4002
+      CORS_ORIGINS: http://localhost:8080
+      LOG_LEVEL: info
+    depends_on:
+      core-api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:4002/health"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks: [fincaapp]
+
+  frontend:
+    build: ./frontend
+    networks: [fincaapp]
+
+  gateway:
+    build: ./services/gateway
+    ports:
+      - "8080:80"
+    depends_on:
+      - auth-service
+      - core-api
+      - weather-service
+      - frontend
+    networks: [fincaapp]
+
+networks:
+  fincaapp:
+    driver: bridge
+
+volumes:
+  postgres_data:

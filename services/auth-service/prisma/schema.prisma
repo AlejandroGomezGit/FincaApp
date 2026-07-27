@@ -1,0 +1,37 @@
+// auth-service posee esta tabla en exclusiva. NO corre `prisma db push`/`migrate`
+// en este servicio — la migración de esquema la controla únicamente core-api,
+// que comparte la misma base de datos física (patrón "shared database, logical
+// ownership per service"). Este schema solo genera un cliente para leer/escribir
+// User y RefreshToken, sin tocar las demás tablas (Farm, Crop, etc.) que no
+// le pertenecen y que ni siquiera se declaran aquí.
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id        Int      @id @default(autoincrement())
+  email     String   @unique
+  password  String
+  name      String
+  role      String   @default("USER")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  refreshTokens RefreshToken[]
+}
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  tokenHash String   @unique
+  userId    Int
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}

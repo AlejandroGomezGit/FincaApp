@@ -1,0 +1,37 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+# Producción arranca con más réplicas base; el HPA de cada servicio sigue
+# escalando por encima de esto según CPU (ver minReplicas/maxReplicas en
+# k8s/base/*.yaml).
+replicas:
+  - name: auth-service
+    count: 3
+  - name: weather-service
+    count: 3
+  - name: core-api
+    count: 3
+  - name: frontend
+    count: 3
+
+patches:
+  - target:
+      kind: Ingress
+      name: fincaapp
+    patch: |-
+      - op: replace
+        path: /spec/rules/0/host
+        value: fincaapp.tudominio.com
+  - target:
+      kind: Deployment
+      name: core-api
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: 768Mi
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: 384Mi

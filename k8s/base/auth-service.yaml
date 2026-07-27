@@ -1,0 +1,85 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: auth-service
+  namespace: fincaapp
+  labels:
+    app: auth-service
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app: auth-service }
+  template:
+    metadata:
+      labels: { app: auth-service }
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+      containers:
+        - name: auth-service
+          image: fincaapp-auth-service:latest
+          imagePullPolicy: IfNotPresent
+          ports:
+            - containerPort: 4001
+          env:
+            - name: PORT
+              value: "4001"
+            - name: DATABASE_URL
+              valueFrom: { secretKeyRef: { name: fincaapp-secrets, key: DATABASE_URL } }
+            - name: JWT_SECRET
+              valueFrom: { secretKeyRef: { name: fincaapp-secrets, key: JWT_SECRET } }
+            - name: JWT_ACCESS_EXPIRY
+              valueFrom: { configMapKeyRef: { name: fincaapp-config, key: JWT_ACCESS_EXPIRY } }
+            - name: JWT_REFRESH_EXPIRY_DAYS
+              valueFrom: { configMapKeyRef: { name: fincaapp-config, key: JWT_REFRESH_EXPIRY_DAYS } }
+            - name: CORS_ORIGINS
+              valueFrom: { configMapKeyRef: { name: fincaapp-config, key: CORS_ORIGINS } }
+            - name: LOG_LEVEL
+              valueFrom: { configMapKeyRef: { name: fincaapp-config, key: LOG_LEVEL } }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: false # Prisma escribe un socket temporal; ver ARCHITECTURE.md
+            capabilities: { drop: ["ALL"] }
+          readinessProbe:
+            httpGet: { path: /ready, port: 4001 }
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: 4001 }
+            initialDelaySeconds: 10
+            periodSeconds: 15
+          resources:
+            requests: { cpu: "100m", memory: "128Mi" }
+            limits: { cpu: "500m", memory: "256Mi" }
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: auth-service
+  namespace: fincaapp
+spec:
+  selector: { app: auth-service }
+  ports:
+    - port: 4001
+      targetPort: 4001
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: auth-service
+  namespace: fincaapp
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: auth-service
+  minReplicas: 2
+  maxReplicas: 6
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target: { type: Utilization, averageUtilization: 70 }
