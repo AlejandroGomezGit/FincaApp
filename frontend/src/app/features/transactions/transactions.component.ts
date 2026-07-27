@@ -8,13 +8,15 @@ import { MatSnackBar } from '@angular/material/snack-bar';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { TransactionsService, Transaction } from '../../core/services/transactions.service';
 import { CropsService, Crop } from '../../core/services/crops.service';
+import { LivestockService, LivestockBatch } from '../../core/services/livestock.service';
 
 const CAT_LABELS: Record<string,string> = {
   VENTA_COSECHA:'Venta de Cosecha', INSUMOS:'Insumos', MAQUINARIA:'Maquinaria',
-  SERVICIOS_EXTERNOS:'Servicios Externos', JORNALES:'Jornales', TRANSPORTE:'Transporte', OTRO:'Otro',
+  INFRAESTRUCTURA:'Infraestructura', SERVICIOS_EXTERNOS:'Servicios Externos',
+  JORNALES:'Jornales', TRANSPORTE:'Transporte', OTRO:'Otro',
 };
 const INCOME_CATS  = ['VENTA_COSECHA','OTRO'];
-const EXPENSE_CATS = ['INSUMOS','MAQUINARIA','SERVICIOS_EXTERNOS','JORNALES','TRANSPORTE','OTRO'];
+const EXPENSE_CATS = ['INSUMOS','MAQUINARIA','INFRAESTRUCTURA','SERVICIOS_EXTERNOS','JORNALES','TRANSPORTE','OTRO'];
 
 @Component({
   selector: 'app-transactions',
@@ -166,6 +168,7 @@ const EXPENSE_CATS = ['INSUMOS','MAQUINARIA','SERVICIOS_EXTERNOS','JORNALES','TR
             <div>
               <div class="desc-cell">{{ tx.description ?? catLabel(tx.category) }}</div>
               @if (tx.crop) { <div class="sub-cell">{{ tx.crop.name }}</div> }
+              @if (tx.livestockBatch) { <div class="sub-cell">{{ tx.livestockBatch.name }}</div> }
             </div>
             <div class="cell col-cat">{{ catLabel(tx.category) }}</div>
             <div class="cell col-date">{{ tx.date | date:'dd/MM/yyyy' }}</div>
@@ -203,9 +206,13 @@ const EXPENSE_CATS = ['INSUMOS','MAQUINARIA','SERVICIOS_EXTERNOS','JORNALES','TR
             <input class="fi" type="number" placeholder="Monto (COP) *" [(ngModel)]="form.amount">
             <input class="fi" type="date" placeholder="Fecha *" [(ngModel)]="form.date">
             <input class="fi" placeholder="Descripción" [(ngModel)]="form.description">
-            <select class="fi" [(ngModel)]="form.cropId">
+            <select class="fi" [(ngModel)]="form.cropId" (ngModelChange)="form.livestockBatchId = ''">
               <option value="">Sin cultivo asociado</option>
               @for (c of crops(); track c.id) { <option [value]="c.id">{{ c.name }}</option> }
+            </select>
+            <select class="fi" [(ngModel)]="form.livestockBatchId" (ngModelChange)="form.cropId = ''">
+              <option value="">Sin lote de ganado asociado</option>
+              @for (b of batches(); track b.id) { <option [value]="b.id">{{ b.name }}</option> }
             </select>
           </div>
           <div class="dialog-footer">
@@ -221,14 +228,16 @@ const EXPENSE_CATS = ['INSUMOS','MAQUINARIA','SERVICIOS_EXTERNOS','JORNALES','TR
   `,
 })
 export class TransactionsComponent implements OnInit {
-  private route    = inject(ActivatedRoute);
-  private svc      = inject(TransactionsService);
-  private cropsSvc = inject(CropsService);
-  private snackBar = inject(MatSnackBar);
+  private route        = inject(ActivatedRoute);
+  private svc          = inject(TransactionsService);
+  private cropsSvc     = inject(CropsService);
+  private livestockSvc = inject(LivestockService);
+  private snackBar     = inject(MatSnackBar);
 
   farmId     = signal(0);
   txs        = signal<Transaction[]>([]);
   crops      = signal<Crop[]>([]);
+  batches    = signal<LivestockBatch[]>([]);
   loading    = signal(true);
   saving     = signal(false);
   showDialog = signal(false);
@@ -244,7 +253,7 @@ export class TransactionsComponent implements OnInit {
     label: ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'][i],
   }));
 
-  form: any = { type: 'INCOME', category: '', amount: null, date: '', description: '', cropId: '' };
+  form: any = { type: 'INCOME', category: '', amount: null, date: '', description: '', cropId: '', livestockBatchId: '' };
 
   filtered = computed(() => {
     let list = this.txs();
@@ -261,6 +270,7 @@ export class TransactionsComponent implements OnInit {
     this.farmId.set(Number(this.route.snapshot.paramMap.get('farmId')));
     this.load();
     this.cropsSvc.list(this.farmId()).subscribe(c => this.crops.set(c));
+    this.livestockSvc.list(this.farmId()).subscribe(b => this.batches.set(b));
   }
 
   load() {
@@ -282,13 +292,14 @@ export class TransactionsComponent implements OnInit {
       date: tx?.date?.substring(0,10) ?? '',
       description: tx?.description ?? '',
       cropId: tx?.cropId ?? '',
+      livestockBatchId: tx?.livestockBatchId ?? '',
     };
     this.showDialog.set(true);
   }
 
   save() {
     this.saving.set(true);
-    const data: any = { ...this.form, cropId: this.form.cropId || null };
+    const data: any = { ...this.form, cropId: this.form.cropId || null, livestockBatchId: this.form.livestockBatchId || null };
     const req = this.editTx() ? this.svc.update(this.farmId(), this.editTx()!.id, data) : this.svc.create(this.farmId(), data);
     req.subscribe({
       next: () => { this.saving.set(false); this.showDialog.set(false); this.load(); this.snackBar.open('Transacción guardada', '', { duration: 2500 }); },

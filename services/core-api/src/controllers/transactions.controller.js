@@ -3,6 +3,8 @@ const prisma = require('../config/prisma');
 const farmOwned = (farmId, userId) =>
   prisma.farm.findFirst({ where: { id: Number(farmId), userId } });
 
+const includeRefs = { crop: { select: { id: true, name: true } }, livestockBatch: { select: { id: true, name: true } } };
+
 exports.list = async (req, res, next) => {
   try {
     const { farmId } = req.params;
@@ -20,7 +22,7 @@ exports.list = async (req, res, next) => {
 
     const transactions = await prisma.transaction.findMany({
       where,
-      include: { crop: { select: { id: true, name: true } } },
+      include: includeRefs,
       orderBy: { date: 'desc' },
     });
     res.json(transactions);
@@ -32,7 +34,7 @@ exports.create = async (req, res, next) => {
     const { farmId } = req.params;
     if (!await farmOwned(farmId, req.userId)) return res.status(404).json({ message: 'Finca no encontrada' });
 
-    const { type, category, amount, date, description, cropId } = req.body;
+    const { type, category, amount, date, description, cropId, livestockBatchId } = req.body;
     const transaction = await prisma.transaction.create({
       data: {
         farmId: Number(farmId), type, category,
@@ -40,8 +42,9 @@ exports.create = async (req, res, next) => {
         date: new Date(date),
         description,
         cropId: cropId ? Number(cropId) : null,
+        livestockBatchId: livestockBatchId ? Number(livestockBatchId) : null,
       },
-      include: { crop: { select: { id: true, name: true } } },
+      include: includeRefs,
     });
     res.status(201).json(transaction);
   } catch (err) { next(err); }
@@ -54,7 +57,7 @@ exports.update = async (req, res, next) => {
     });
     if (!tx) return res.status(404).json({ message: 'Transacción no encontrada' });
 
-    const { type, category, amount, date, description, cropId } = req.body;
+    const { type, category, amount, date, description, cropId, livestockBatchId } = req.body;
     const updated = await prisma.transaction.update({
       where: { id: Number(req.params.id) },
       data: {
@@ -63,8 +66,9 @@ exports.update = async (req, res, next) => {
         date: date ? new Date(date) : undefined,
         description,
         cropId: cropId !== undefined ? (cropId ? Number(cropId) : null) : undefined,
+        livestockBatchId: livestockBatchId !== undefined ? (livestockBatchId ? Number(livestockBatchId) : null) : undefined,
       },
-      include: { crop: { select: { id: true, name: true } } },
+      include: includeRefs,
     });
     res.json(updated);
   } catch (err) { next(err); }

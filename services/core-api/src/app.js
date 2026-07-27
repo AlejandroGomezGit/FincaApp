@@ -40,6 +40,8 @@ app.use('/api/farms/:farmId/workers', auth, require('./routes/workers.routes'));
 app.use('/api/farms/:farmId/transactions', auth, require('./routes/transactions.routes'));
 app.use('/api/farms/:farmId/dashboard', auth, require('./routes/dashboard.routes'));
 app.use('/api/farms/:farmId/analytics', auth, require('./routes/analytics.routes'));
+app.use('/api/farms/:farmId/livestock', auth, require('./routes/livestock.routes'));
+app.use('/api/farms/:farmId/alerts', auth, require('./routes/alerts.routes'));
 
 app.use(errorHandler);
 

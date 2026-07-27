@@ -2,9 +2,10 @@ import { Injectable } from '@angular/core';
 import { ApiService } from './api.service';
 
 export interface Transaction {
-  id: number; farmId: number; cropId?: number; type: 'INCOME' | 'EXPENSE';
+  id: number; farmId: number; cropId?: number; livestockBatchId?: number; type: 'INCOME' | 'EXPENSE';
   category: string; amount: number; date: string; description?: string;
   crop?: { id: number; name: string };
+  livestockBatch?: { id: number; name: string };
 }
 
 @Injectable({ providedIn: 'root' })

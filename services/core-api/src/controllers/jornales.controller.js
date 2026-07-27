@@ -1,7 +1,17 @@
 const prisma = require('../config/prisma');
 
+// La actividad padre puede colgar de un cultivo o de un lote de ganado (ver
+// activities.controller.js) — se chequea ownership por cualquiera de los dos.
 const activityOwned = (activityId, userId) =>
-  prisma.activity.findFirst({ where: { id: Number(activityId), crop: { farm: { userId } } } });
+  prisma.activity.findFirst({
+    where: {
+      id: Number(activityId),
+      OR: [
+        { crop: { farm: { userId } } },
+        { livestockBatch: { farm: { userId } } },
+      ],
+    },
+  });
 
 exports.list = async (req, res, next) => {
   try {
@@ -41,7 +51,15 @@ exports.create = async (req, res, next) => {
 exports.update = async (req, res, next) => {
   try {
     const jornal = await prisma.jornal.findFirst({
-      where: { id: Number(req.params.id), activity: { crop: { farm: { userId: req.userId } } } },
+      where: {
+        id: Number(req.params.id),
+        activity: {
+          OR: [
+            { crop: { farm: { userId: req.userId } } },
+            { livestockBatch: { farm: { userId: req.userId } } },
+          ],
+        },
+      },
     });
     if (!jornal) return res.status(404).json({ message: 'Jornal no encontrado' });
 
@@ -64,7 +82,15 @@ exports.update = async (req, res, next) => {
 exports.remove = async (req, res, next) => {
   try {
     const jornal = await prisma.jornal.findFirst({
-      where: { id: Number(req.params.id), activity: { crop: { farm: { userId: req.userId } } } },
+      where: {
+        id: Number(req.params.id),
+        activity: {
+          OR: [
+            { crop: { farm: { userId: req.userId } } },
+            { livestockBatch: { farm: { userId: req.userId } } },
+          ],
+        },
+      },
     });
     if (!jornal) return res.status(404).json({ message: 'Jornal no encontrado' });
 

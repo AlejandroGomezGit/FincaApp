@@ -1,8 +1,9 @@
 import { Injectable } from '@angular/core';
 import { ApiService } from './api.service';
 
+// Una actividad cuelga de un cultivo O de un lote de ganado — nunca ambos.
 export interface Activity {
-  id: number; name: string; category: string; cropId: number;
+  id: number; name: string; category: string; cropId?: number | null; livestockBatchId?: number | null;
   startDate: string; endDate?: string; status: string; description?: string;
   totalJornales?: number; totalCostJornales?: number;
   _count?: { jornales: number };
@@ -12,19 +13,25 @@ export interface Activity {
 export class ActivitiesService {
   constructor(private api: ApiService) {}
 
-  list(farmId: number, cropId: number) {
-    return this.api.get<Activity[]>(`/farms/${farmId}/crops/${cropId}/activities`);
+  private base(farmId: number, parent: { cropId?: number; batchId?: number }) {
+    return parent.cropId != null
+      ? `/farms/${farmId}/crops/${parent.cropId}/activities`
+      : `/farms/${farmId}/livestock/${parent.batchId}/activities`;
   }
-  get(farmId: number, cropId: number, id: number) {
-    return this.api.get<Activity>(`/farms/${farmId}/crops/${cropId}/activities/${id}`);
+
+  list(farmId: number, parent: { cropId?: number; batchId?: number }) {
+    return this.api.get<Activity[]>(this.base(farmId, parent));
   }
-  create(farmId: number, cropId: number, data: Partial<Activity>) {
-    return this.api.post<Activity>(`/farms/${farmId}/crops/${cropId}/activities`, data);
+  get(farmId: number, parent: { cropId?: number; batchId?: number }, id: number) {
+    return this.api.get<Activity>(`${this.base(farmId, parent)}/${id}`);
   }
-  update(farmId: number, cropId: number, id: number, data: Partial<Activity>) {
-    return this.api.put<Activity>(`/farms/${farmId}/crops/${cropId}/activities/${id}`, data);
+  create(farmId: number, parent: { cropId?: number; batchId?: number }, data: Partial<Activity>) {
+    return this.api.post<Activity>(this.base(farmId, parent), data);
   }
-  remove(farmId: number, cropId: number, id: number) {
-    return this.api.delete(`/farms/${farmId}/crops/${cropId}/activities/${id}`);
+  update(farmId: number, parent: { cropId?: number; batchId?: number }, id: number, data: Partial<Activity>) {
+    return this.api.put<Activity>(`${this.base(farmId, parent)}/${id}`, data);
+  }
+  remove(farmId: number, parent: { cropId?: number; batchId?: number }, id: number) {
+    return this.api.delete(`${this.base(farmId, parent)}/${id}`);
   }
 }

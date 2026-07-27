@@ -19,9 +19,11 @@ import { AuthService } from '../../../core/services/auth.service';
 
 const NAV = [
   { label: 'Dashboard',     icon: 'dashboard',              seg: 'dashboard'     },
+  { label: 'Alertas',       icon: 'notifications_active',   seg: 'alerts'        },
   { label: 'Analítica',     icon: 'show_chart',             seg: 'analytics'     },
   { label: 'Clima',         icon: 'wb_cloudy',              seg: 'weather'       },
   { label: 'Cultivos',      icon: 'grass',                  seg: 'crops'         },
+  { label: 'Ganado y Aves', icon: 'pets',                   seg: 'livestock'     },
   { label: 'Trabajadores',  icon: 'people',                 seg: 'workers'       },
   { label: 'Transacciones', icon: 'account_balance_wallet', seg: 'transactions'  },
 ];

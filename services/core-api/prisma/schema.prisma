@@ -50,10 +50,11 @@ model Farm {
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
 
-  user         User          @relation(fields: [userId], references: [id], onDelete: Cascade)
-  crops        Crop[]
-  workers      Worker[]
-  transactions Transaction[]
+  user             User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  crops            Crop[]
+  workers          Worker[]
+  transactions     Transaction[]
+  livestockBatches LivestockBatch[]
 }
 
 model Crop {
@@ -75,20 +76,26 @@ model Crop {
   transactions        Transaction[]
 }
 
+// Una actividad aplica a un Crop O a un LivestockBatch, nunca a ambos —
+// exactamente uno de los dos debe estar presente. Esto se valida en el
+// controller (activities.controller.js), no con un constraint de base de
+// datos, siguiendo el estilo del resto del proyecto.
 model Activity {
-  id          Int            @id @default(autoincrement())
-  name        String
-  category    ActivityCategory
-  cropId      Int
-  startDate   DateTime
-  endDate     DateTime?
-  status      ActivityStatus @default(IN_PROGRESS)
-  description String?
-  createdAt   DateTime       @default(now())
-  updatedAt   DateTime       @updatedAt
+  id               Int              @id @default(autoincrement())
+  name             String
+  category         ActivityCategory
+  cropId           Int?
+  livestockBatchId Int?
+  startDate        DateTime
+  endDate          DateTime?
+  status           ActivityStatus   @default(IN_PROGRESS)
+  description      String?
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
-  crop     Crop      @relation(fields: [cropId], references: [id], onDelete: Cascade)
-  jornales Jornal[]
+  crop           Crop?           @relation(fields: [cropId], references: [id], onDelete: Cascade)
+  livestockBatch LivestockBatch? @relation(fields: [livestockBatchId], references: [id], onDelete: Cascade)
+  jornales       Jornal[]
 }
 
 model Worker {
@@ -121,19 +128,21 @@ model Jornal {
 }
 
 model Transaction {
-  id          Int             @id @default(autoincrement())
-  farmId      Int
-  cropId      Int?
-  type        TransactionType
-  category    TransactionCategory
-  amount      Float
-  date        DateTime
-  description String?
-  createdAt   DateTime        @default(now())
-  updatedAt   DateTime        @updatedAt
+  id               Int             @id @default(autoincrement())
+  farmId           Int
+  cropId           Int?
+  livestockBatchId Int?
+  type             TransactionType
+  category         TransactionCategory
+  amount           Float
+  date             DateTime
+  description      String?
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
 
-  farm Farm  @relation(fields: [farmId], references: [id], onDelete: Cascade)
-  crop Crop? @relation(fields: [cropId], references: [id], onDelete: SetNull)
+  farm           Farm            @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  crop           Crop?           @relation(fields: [cropId], references: [id], onDelete: SetNull)
+  livestockBatch LivestockBatch? @relation(fields: [livestockBatchId], references: [id], onDelete: SetNull)
 }
 
 model HarvestProjection {
@@ -149,6 +158,121 @@ model HarvestProjection {
   updatedAt          DateTime @updatedAt
 
   crop Crop @relation(fields: [cropId], references: [id], onDelete: Cascade)
+}
+
+// ─────────────────────────────────────────────────────────────────────────
+// Ganado / aves. LivestockBatch es el lote (ej. "200 gallinas ponedoras" o
+// "hato de leche"); Animal es opcional — solo se crea cuando de verdad tiene
+// sentido llevar un registro por cabeza individual (ganado), no para aves de
+// corral donde todo se maneja a nivel de lote. Health/Mortality pueden
+// referenciar un animal puntual O el lote completo (animalId null).
+// ─────────────────────────────────────────────────────────────────────────
+model LivestockBatch {
+  id              Int              @id @default(autoincrement())
+  name            String
+  species         LivestockSpecies
+  purpose         LivestockPurpose
+  farmId          Int
+  quantity        Int              @default(1)
+  acquisitionDate DateTime?
+  status          LivestockStatus  @default(ACTIVE)
+  notes           String?
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  farm              Farm               @relation(fields: [farmId], references: [id], onDelete: Cascade)
+  animals           Animal[]
+  activities        Activity[]
+  transactions      Transaction[]
+  healthRecords     HealthRecord[]
+  productionRecords ProductionRecord[]
+  mortalityRecords  MortalityRecord[]
+}
+
+model Animal {
+  id        Int          @id @default(autoincrement())
+  batchId   Int
+  tag       String?
+  sex       AnimalSex?
+  birthDate DateTime?
+  breed     String?
+  status    AnimalStatus @default(ACTIVE)
+  notes     String?
+  createdAt DateTime     @default(now())
+  updatedAt DateTime     @updatedAt
+
+  batch               LivestockBatch       @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  weightRecords       WeightRecord[]
+  healthRecords       HealthRecord[]
+  reproductionRecords ReproductionRecord[]
+  mortalityRecords    MortalityRecord[]
+}
+
+model WeightRecord {
+  id        Int      @id @default(autoincrement())
+  animalId  Int
+  date      DateTime
+  weightKg  Float
+  notes     String?
+  createdAt DateTime @default(now())
+
+  animal Animal @relation(fields: [animalId], references: [id], onDelete: Cascade)
+}
+
+model HealthRecord {
+  id          Int              @id @default(autoincrement())
+  batchId     Int
+  animalId    Int?
+  type        HealthRecordType
+  date        DateTime
+  product     String?
+  cost        Float?
+  nextDueDate DateTime?
+  notes       String?
+  createdAt   DateTime         @default(now())
+
+  batch  LivestockBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  animal Animal?        @relation(fields: [animalId], references: [id], onDelete: Cascade)
+}
+
+model ReproductionRecord {
+  id             Int              @id @default(autoincrement())
+  animalId       Int
+  type           ReproductionType
+  date           DateTime
+  expectedDate   DateTime?
+  offspringCount Int?
+  notes          String?
+  createdAt      DateTime         @default(now())
+
+  animal Animal @relation(fields: [animalId], references: [id], onDelete: Cascade)
+}
+
+model ProductionRecord {
+  id          Int            @id @default(autoincrement())
+  batchId     Int
+  date        DateTime
+  productType ProductionType
+  quantity    Float
+  unit        String         @default("unidad")
+  notes       String?
+  createdAt   DateTime       @default(now())
+
+  batch LivestockBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+}
+
+model MortalityRecord {
+  id        Int      @id @default(autoincrement())
+  batchId   Int
+  animalId  Int?
+  date      DateTime
+  quantity  Int      @default(1)
+  cause     String?
+  notes     String?
+  createdAt DateTime @default(now())
+
+  batch  LivestockBatch @relation(fields: [batchId], references: [id], onDelete: Cascade)
+  animal Animal?        @relation(fields: [animalId], references: [id], onDelete: SetNull)
 }
 
 enum CropType {
@@ -175,6 +299,9 @@ enum ActivityCategory {
   COSECHA
   MANTENIMIENTO
   RIEGO
+  VACUNACION
+  ALIMENTACION
+  MANEJO_ANIMAL
   OTRO
 }
 
@@ -193,8 +320,67 @@ enum TransactionCategory {
   VENTA_COSECHA
   INSUMOS
   MAQUINARIA
+  INFRAESTRUCTURA
   SERVICIOS_EXTERNOS
   JORNALES
   TRANSPORTE
+  OTRO
+}
+
+enum LivestockSpecies {
+  BOVINO
+  AVES
+  PORCINO
+  OVINO
+  CAPRINO
+  EQUINO
+  OTRO
+}
+
+enum LivestockPurpose {
+  LECHE
+  CARNE
+  HUEVOS
+  REPRODUCCION
+  DOBLE_PROPOSITO
+  OTRO
+}
+
+enum LivestockStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum AnimalSex {
+  MACHO
+  HEMBRA
+}
+
+enum AnimalStatus {
+  ACTIVE
+  SOLD
+  DECEASED
+}
+
+enum HealthRecordType {
+  VACUNA
+  DESPARASITACION
+  TRATAMIENTO
+  REVISION
+  OTRO
+}
+
+enum ReproductionType {
+  MONTA
+  INSEMINACION
+  GESTACION_CONFIRMADA
+  PARTO
+  ABORTO
+}
+
+enum ProductionType {
+  LECHE
+  HUEVOS
+  LANA
   OTRO
 }

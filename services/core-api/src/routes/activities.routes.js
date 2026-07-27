@@ -4,7 +4,7 @@ const ctrl = require('../controllers/activities.controller');
 const validate = require('../middleware/validate');
 const jornalesRoutes = require('./jornales.routes');
 
-const CATEGORIES = ['SIEMBRA', 'FERTILIZACION', 'FUMIGACION', 'PODA', 'COSECHA', 'MANTENIMIENTO', 'RIEGO', 'OTRO'];
+const CATEGORIES = ['SIEMBRA', 'FERTILIZACION', 'FUMIGACION', 'PODA', 'COSECHA', 'MANTENIMIENTO', 'RIEGO', 'VACUNACION', 'ALIMENTACION', 'MANEJO_ANIMAL', 'OTRO'];
 const STATUSES = ['IN_PROGRESS', 'COMPLETED', 'CANCELLED'];
 
 const createValidators = [

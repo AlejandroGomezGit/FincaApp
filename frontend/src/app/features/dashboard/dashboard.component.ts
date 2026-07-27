@@ -6,6 +6,9 @@ import { MatIconModule } from '@angular/material/icon';
 import { MatButtonModule } from '@angular/material/button';
 import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { DashboardService, DashboardSummary, MonthlyBalance, ActivityCost } from '../../core/services/dashboard.service';
+import { AlertsService, Alert } from '../../core/services/alerts.service';
+
+const SEVERITY_CLASS: Record<string, string> = { info: 'alert-g', warning: 'alert-a', danger: 'alert-r' };
 
 const MONTH_NAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
 
@@ -99,11 +102,24 @@ const MONTH_NAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct'
 
     .two-col { display:grid; grid-template-columns:1fr 1fr; gap:20px; }
     @media(max-width:900px) { .two-col { grid-template-columns:1fr; } }
+
+    /* alertas teaser */
+    .alert-teaser { display:flex; align-items:center; gap:12px; padding:12px 14px; border-radius:10px; margin-bottom:10px; }
+    .alert-teaser:last-child { margin-bottom:0; }
+    .alert-teaser mat-icon { font-size:19px; width:19px; height:19px; flex-shrink:0; }
+    .alert-teaser-text { font-size:13px; color:#1c2b16; }
+    .alert-g { background:rgba(74,143,63,0.07); } .alert-g mat-icon { color:#3d7034; }
+    .alert-a { background:rgba(196,132,26,0.07); } .alert-a mat-icon { color:#c4841a; }
+    .alert-r { background:rgba(200,80,80,0.07); } .alert-r mat-icon { color:#c05050; }
+    .see-all-link { font-size:12.5px; color:#2a5225; font-weight:600; cursor:pointer; display:flex; align-items:center; gap:2px; margin-top:6px; }
   `],
   template: `
     <div class="header-row">
       <div class="page-title">Dashboard</div>
       <div class="header-actions">
+        <button mat-stroked-button style="border-color:#c8d8c0;color:#2a5225" (click)="goToAlerts()">
+          <mat-icon>notifications_active</mat-icon> Alertas @if (alerts().length) { ({{ alerts().length }}) }
+        </button>
         <button mat-stroked-button style="border-color:#c8d8c0;color:#2a5225" (click)="goToAnalytics()">
           <mat-icon>trending_up</mat-icon> Proyección
         </button>
@@ -166,6 +182,19 @@ const MONTH_NAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct'
           <div class="kpi-sub">en progreso</div>
         </div>
       </div>
+
+      @if (alerts().length) {
+        <div class="section">
+          <div class="section-title"><mat-icon>notifications_active</mat-icon>Alertas Tempranas</div>
+          @for (a of alerts().slice(0, 3); track a.id) {
+            <div class="alert-teaser" [class]="sevClass(a)">
+              <mat-icon>{{ a.icon }}</mat-icon>
+              <div class="alert-teaser-text">{{ a.message }}</div>
+            </div>
+          }
+          <div class="see-all-link" (click)="goToAlerts()">Ver todas las alertas <mat-icon style="font-size:15px;width:15px;height:15px">arrow_forward</mat-icon></div>
+        </div>
+      }
 
       <!-- Balance mensual chart + proximas cosechas -->
       <div class="two-col">
@@ -230,14 +259,16 @@ const MONTH_NAMES = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct'
   `,
 })
 export class DashboardComponent implements OnInit {
-  private route  = inject(ActivatedRoute);
-  private router = inject(Router);
-  private svc    = inject(DashboardService);
+  private route      = inject(ActivatedRoute);
+  private router     = inject(Router);
+  private svc        = inject(DashboardService);
+  private alertsSvc  = inject(AlertsService);
 
   farmId      = signal(0);
   summary     = signal<DashboardSummary | null>(null);
   monthly     = signal<MonthlyBalance[]>([]);
   actCosts    = signal<ActivityCost[]>([]);
+  alerts      = signal<Alert[]>([]);
   loading     = signal(true);
   currentYear = new Date().getFullYear();
 
@@ -254,7 +285,10 @@ export class DashboardComponent implements OnInit {
     this.svc.getSummary(id).subscribe(s => { this.summary.set(s); this.loading.set(false); });
     this.svc.getMonthlyBalance(id).subscribe(m => { this.monthly.set(m); this.maxVal = Math.max(...m.map(x => Math.max(x.income, x.expense)), 1); });
     this.svc.getActivityCosts(id).subscribe(a => this.actCosts.set(a));
+    this.alertsSvc.list(id).subscribe(r => this.alerts.set(r.alerts));
   }
+
+  sevClass(a: Alert): string { return SEVERITY_CLASS[a.severity] ?? 'alert-g'; }
 
   barH(val: number): number {
     return Math.round((val / this.maxVal) * 100);
@@ -264,4 +298,5 @@ export class DashboardComponent implements OnInit {
 
   goToAnalytics() { this.router.navigate(['/farms', this.farmId(), 'analytics']); }
   goToWeather() { this.router.navigate(['/farms', this.farmId(), 'weather']); }
+  goToAlerts() { this.router.navigate(['/farms', this.farmId(), 'alerts']); }
 }

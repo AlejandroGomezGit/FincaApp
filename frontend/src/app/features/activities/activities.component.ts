@@ -9,10 +9,23 @@ import { MatProgressSpinnerModule } from '@angular/material/progress-spinner';
 import { CurrencyPipe } from '@angular/common';
 import { ActivitiesService, Activity } from '../../core/services/activities.service';
 
-const CATEGORIES = ['SIEMBRA','FERTILIZACION','FUMIGACION','PODA','COSECHA','MANTENIMIENTO','RIEGO','OTRO'];
-const CAT_LABELS: Record<string,string> = { SIEMBRA:'Siembra', FERTILIZACION:'Fertilización', FUMIGACION:'Fumigación', PODA:'Poda', COSECHA:'Cosecha', MANTENIMIENTO:'Mantenimiento', RIEGO:'Riego', OTRO:'Otro' };
-const CAT_ICONS: Record<string,string>  = { SIEMBRA:'yard', FERTILIZACION:'science', FUMIGACION:'cloud', PODA:'content_cut', COSECHA:'agriculture', MANTENIMIENTO:'build', RIEGO:'water_drop', OTRO:'miscellaneous_services' };
-const CAT_COLORS: Record<string,string> = { SIEMBRA:'#4a8f3f', FERTILIZACION:'#3c78c8', FUMIGACION:'#9b59b6', PODA:'#c4841a', COSECHA:'#e67e22', MANTENIMIENTO:'#7f8c8d', RIEGO:'#1abc9c', OTRO:'#8a9882' };
+const CROP_CATEGORIES = ['SIEMBRA','FERTILIZACION','FUMIGACION','PODA','COSECHA','MANTENIMIENTO','RIEGO','OTRO'];
+const LIVESTOCK_CATEGORIES = ['VACUNACION','ALIMENTACION','MANEJO_ANIMAL','MANTENIMIENTO','OTRO'];
+const CAT_LABELS: Record<string,string> = {
+  SIEMBRA:'Siembra', FERTILIZACION:'Fertilización', FUMIGACION:'Fumigación', PODA:'Poda', COSECHA:'Cosecha',
+  MANTENIMIENTO:'Mantenimiento', RIEGO:'Riego', OTRO:'Otro',
+  VACUNACION:'Vacunación', ALIMENTACION:'Alimentación', MANEJO_ANIMAL:'Manejo animal',
+};
+const CAT_ICONS: Record<string,string>  = {
+  SIEMBRA:'yard', FERTILIZACION:'science', FUMIGACION:'cloud', PODA:'content_cut', COSECHA:'agriculture',
+  MANTENIMIENTO:'build', RIEGO:'water_drop', OTRO:'miscellaneous_services',
+  VACUNACION:'vaccines', ALIMENTACION:'grass', MANEJO_ANIMAL:'pets',
+};
+const CAT_COLORS: Record<string,string> = {
+  SIEMBRA:'#4a8f3f', FERTILIZACION:'#3c78c8', FUMIGACION:'#9b59b6', PODA:'#c4841a', COSECHA:'#e67e22',
+  MANTENIMIENTO:'#7f8c8d', RIEGO:'#1abc9c', OTRO:'#8a9882',
+  VACUNACION:'#c0567c', ALIMENTACION:'#8a9882', MANEJO_ANIMAL:'#a0764a',
+};
 const STATUS_LABELS: Record<string,string> = { IN_PROGRESS:'En progreso', COMPLETED:'Completada', CANCELLED:'Cancelada' };
 const STATUS_COLORS: Record<string,string> = { IN_PROGRESS:'#c4841a', COMPLETED:'#3d7034', CANCELLED:'#c05050' };
 
@@ -70,7 +83,7 @@ const STATUS_COLORS: Record<string,string> = { IN_PROGRESS:'#c4841a', COMPLETED:
     <div class="header">
       <div>
         <h1>Actividades</h1>
-        <p style="color:#7a8670;font-size:13.5px;margin:4px 0 0">Cultivo: {{ cropId() }} · Finca: {{ farmId() }}</p>
+        <p style="color:#7a8670;font-size:13.5px;margin:4px 0 0">{{ cropId() != null ? 'Cultivo' : 'Lote de ganado' }} #{{ cropId() ?? batchId() }} · Finca: {{ farmId() }}</p>
       </div>
       <button mat-flat-button class="add-btn" (click)="openDialog()">
         <mat-icon>add</mat-icon> Nueva Actividad
@@ -179,25 +192,33 @@ export class ActivitiesComponent implements OnInit {
   private snackBar = inject(MatSnackBar);
 
   farmId       = signal(0);
-  cropId       = signal(0);
+  cropId       = signal<number | null>(null);
+  batchId      = signal<number | null>(null);
   activities   = signal<Activity[]>([]);
   loading      = signal(true);
   saving       = signal(false);
   showDialog   = signal(false);
   editActivity = signal<Activity | null>(null);
-  categories   = CATEGORIES;
+  categories   = CROP_CATEGORIES;
 
   form = { name: '', category: 'MANTENIMIENTO', startDate: '', endDate: '', status: 'IN_PROGRESS', description: '' };
 
+  private parent() {
+    return this.cropId() != null ? { cropId: this.cropId()! } : { batchId: this.batchId()! };
+  }
+
   ngOnInit() {
-    this.farmId.set(Number(this.route.snapshot.paramMap.get('farmId')));
-    this.cropId.set(Number(this.route.snapshot.paramMap.get('cropId')));
+    const p = this.route.snapshot.paramMap;
+    this.farmId.set(Number(p.get('farmId')));
+    this.cropId.set(p.get('cropId') ? Number(p.get('cropId')) : null);
+    this.batchId.set(p.get('batchId') ? Number(p.get('batchId')) : null);
+    this.categories = this.cropId() != null ? CROP_CATEGORIES : LIVESTOCK_CATEGORIES;
     this.load();
   }
 
   load() {
     this.loading.set(true);
-    this.svc.list(this.farmId(), this.cropId()).subscribe({
+    this.svc.list(this.farmId(), this.parent()).subscribe({
       next: a => { this.activities.set(a); this.loading.set(false); },
       error: () => this.loading.set(false),
     });
@@ -219,8 +240,8 @@ export class ActivitiesComponent implements OnInit {
     this.saving.set(true);
     const data: any = { ...this.form, endDate: this.form.endDate || null };
     const req = this.editActivity()
-      ? this.svc.update(this.farmId(), this.cropId(), this.editActivity()!.id, data)
-      : this.svc.create(this.farmId(), this.cropId(), data);
+      ? this.svc.update(this.farmId(), this.parent(), this.editActivity()!.id, data)
+      : this.svc.create(this.farmId(), this.parent(), data);
     req.subscribe({
       next: () => { this.saving.set(false); this.showDialog.set(false); this.load(); this.snackBar.open('Actividad guardada', '', { duration: 2500 }); },
       error: () => { this.saving.set(false); this.snackBar.open('Error al guardar', '', { duration: 3000 }); },
@@ -229,11 +250,12 @@ export class ActivitiesComponent implements OnInit {
 
   remove(a: Activity) {
     if (!confirm(`¿Eliminar "${a.name}"?`)) return;
-    this.svc.remove(this.farmId(), this.cropId(), a.id).subscribe({ next: () => { this.load(); this.snackBar.open('Actividad eliminada', '', { duration: 2500 }); } });
+    this.svc.remove(this.farmId(), this.parent(), a.id).subscribe({ next: () => { this.load(); this.snackBar.open('Actividad eliminada', '', { duration: 2500 }); } });
   }
 
   goJornales(a: Activity) {
-    this.router.navigate(['/farms', this.farmId(), 'crops', this.cropId(), 'activities', a.id, 'jornales']);
+    const segment = this.cropId() != null ? ['crops', this.cropId()] : ['livestock', this.batchId()];
+    this.router.navigate(['/farms', this.farmId(), ...segment, 'activities', a.id, 'jornales']);
   }
 
   durationDays(a: Activity): number {

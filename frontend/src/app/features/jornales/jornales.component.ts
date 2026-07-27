@@ -173,7 +173,8 @@ export class JornalesComponent implements OnInit {
   private snackBar   = inject(MatSnackBar);
 
   farmId     = signal(0);
-  cropId     = signal(0);
+  cropId     = signal<number | null>(null);
+  batchId    = signal<number | null>(null);
   activityId = signal(0);
   jornales   = signal<Jornal[]>([]);
   workers    = signal<Worker[]>([]);
@@ -191,15 +192,20 @@ export class JornalesComponent implements OnInit {
   ngOnInit() {
     const p = this.route.snapshot.paramMap;
     this.farmId.set(Number(p.get('farmId')));
-    this.cropId.set(Number(p.get('cropId')));
+    this.cropId.set(p.get('cropId') ? Number(p.get('cropId')) : null);
+    this.batchId.set(p.get('batchId') ? Number(p.get('batchId')) : null);
     this.activityId.set(Number(p.get('activityId')));
     this.load();
     this.workersSvc.list(this.farmId()).subscribe(w => this.workers.set(w));
   }
 
+  private parent() {
+    return this.cropId() != null ? { cropId: this.cropId()! } : { batchId: this.batchId()! };
+  }
+
   load() {
     this.loading.set(true);
-    this.svc.list(this.farmId(), this.cropId(), this.activityId()).subscribe({
+    this.svc.list(this.farmId(), this.parent(), this.activityId()).subscribe({
       next: j => { this.jornales.set(j); this.loading.set(false); },
       error: () => this.loading.set(false),
     });
@@ -221,8 +227,8 @@ export class JornalesComponent implements OnInit {
     this.saving.set(true);
     const data: any = { workerId: this.form.workerId, date: this.form.date, days: this.form.days, dailyValue: this.form.dailyValue, notes: this.form.notes || null };
     const req = this.editJornal()
-      ? this.svc.update(this.farmId(), this.cropId(), this.activityId(), this.editJornal()!.id, data)
-      : this.svc.create(this.farmId(), this.cropId(), this.activityId(), data);
+      ? this.svc.update(this.farmId(), this.parent(), this.activityId(), this.editJornal()!.id, data)
+      : this.svc.create(this.farmId(), this.parent(), this.activityId(), data);
     req.subscribe({
       next: () => { this.saving.set(false); this.showDialog.set(false); this.load(); this.snackBar.open('Jornal guardado', '', { duration: 2500 }); },
       error: () => { this.saving.set(false); this.snackBar.open('Error al guardar', '', { duration: 3000 }); },
@@ -231,6 +237,6 @@ export class JornalesComponent implements OnInit {
 
   remove(j: Jornal) {
     if (!confirm('¿Eliminar este jornal?')) return;
-    this.svc.remove(this.farmId(), this.cropId(), this.activityId(), j.id).subscribe({ next: () => { this.load(); this.snackBar.open('Jornal eliminado', '', { duration: 2500 }); } });
+    this.svc.remove(this.farmId(), this.parent(), this.activityId(), j.id).subscribe({ next: () => { this.load(); this.snackBar.open('Jornal eliminado', '', { duration: 2500 }); } });
   }
 }

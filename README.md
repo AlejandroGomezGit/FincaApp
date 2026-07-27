@@ -1,9 +1,12 @@
 # 🌱 FincaApp — Administración de Fincas
 
-> Gestión integral de fincas cafeteras/agrícolas: cultivos, actividades,
+> Gestión integral de fincas — cultivos **y ganado/aves**, actividades,
 > jornales, transacciones, un dashboard financiero, analítica predictiva de
-> ingresos/cosechas y recomendaciones agronómicas basadas en el clima real de
-> la región de cada finca.
+> ingresos/cosechas, recomendaciones agronómicas basadas en el clima real de
+> la región de cada finca, y un motor de **alertas tempranas** que compara
+> cada finca contra su propio historial (jornales fuera de lo normal, costos
+> subiendo, mortalidad alta, producción cayendo) para avisar antes de que el
+> problema sea grande.
 
 [![CI](https://github.com/TU_USUARIO/FincaApp/actions/workflows/ci.yml/badge.svg)](https://github.com/TU_USUARIO/FincaApp/actions/workflows/ci.yml)
 ![Node](https://img.shields.io/badge/Node.js-22-339933?logo=node.js&logoColor=white)
@@ -111,9 +114,11 @@ cd frontend                && npm install && npm start
 | **Jornales** | Registro de mano de obra por actividad (trabajador, días, valor) |
 | **Trabajadores** | Personal activo/inactivo por finca |
 | **Transacciones** | Ingresos y egresos (venta cosecha, insumos, maquinaria, servicios) |
-| **Dashboard** | Balance mensual, KPIs, costo por actividad, próximas cosechas |
+| **Dashboard** | Balance mensual, KPIs, costo por actividad, próximas cosechas, teaser de alertas |
 | **Analítica predictiva** | Proyección financiera (regresión lineal) y tendencia de rendimiento por cultivo |
 | **Clima y recomendaciones** | Pronóstico 7 días (Open-Meteo) + reglas agronómicas cruzando clima con tus actividades |
+| **Ganado y Aves** | Lotes de animales (bovino, aves, porcino, ovino...), animales individuales opcionales con peso/salud/reproducción, producción (leche/huevos/lana) y mortalidad — mismo motor de actividades/jornales que los cultivos |
+| **Alertas tempranas** | 6 reglas comparando contra el promedio histórico de tu propia finca: jornales fuera de lo normal, costo/hectárea subiendo, cultivo con margen negativo, actividad vencida, mortalidad alta, producción cayendo |
 
 ## API
 
@@ -147,10 +152,23 @@ GET             /api/farms/:farmId/dashboard/summary
 GET             /api/farms/:farmId/dashboard/monthly-balance?year=2026
 GET             /api/farms/:farmId/dashboard/activity-costs
 GET             /api/farms/:farmId/analytics/forecast
+GET             /api/farms/:farmId/alerts
+
+GET/POST        /api/farms/:farmId/livestock
+GET/PUT/DELETE  /api/farms/:farmId/livestock/:id
+GET/POST        /api/farms/:farmId/livestock/:batchId/animals
+GET/PUT/DELETE  /api/farms/:farmId/livestock/:batchId/animals/:id
+GET/POST        /api/farms/:farmId/livestock/:batchId/{activities,health,production,mortality}
+GET/POST        /api/farms/:farmId/livestock/:batchId/animals/:animalId/{weights,reproduction}
 
 # weather-service
 GET    /api/farms/:farmId/weather
 ```
+
+> Nota: `Activity`/`Transaction` cuelgan de un Cultivo **o** de un Lote de
+> ganado (nunca ambos) — por eso `/crops/:cropId/activities` y
+> `/livestock/:batchId/activities` son el mismo router reutilizado, y las
+> mismas reglas de jornales/costos del Dashboard aplican a ambos por igual.
 
 ## Tests
 

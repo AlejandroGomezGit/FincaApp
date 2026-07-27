@@ -11,16 +11,23 @@ export interface Jornal {
 export class JornalesService {
   constructor(private api: ApiService) {}
 
-  list(farmId: number, cropId: number, activityId: number) {
-    return this.api.get<Jornal[]>(`/farms/${farmId}/crops/${cropId}/activities/${activityId}/jornales`);
+  private base(farmId: number, parent: { cropId?: number; batchId?: number }, activityId: number) {
+    const activitiesBase = parent.cropId != null
+      ? `/farms/${farmId}/crops/${parent.cropId}/activities`
+      : `/farms/${farmId}/livestock/${parent.batchId}/activities`;
+    return `${activitiesBase}/${activityId}/jornales`;
   }
-  create(farmId: number, cropId: number, activityId: number, data: Partial<Jornal>) {
-    return this.api.post<Jornal>(`/farms/${farmId}/crops/${cropId}/activities/${activityId}/jornales`, data);
+
+  list(farmId: number, parent: { cropId?: number; batchId?: number }, activityId: number) {
+    return this.api.get<Jornal[]>(this.base(farmId, parent, activityId));
   }
-  update(farmId: number, cropId: number, activityId: number, id: number, data: Partial<Jornal>) {
-    return this.api.put<Jornal>(`/farms/${farmId}/crops/${cropId}/activities/${activityId}/jornales/${id}`, data);
+  create(farmId: number, parent: { cropId?: number; batchId?: number }, activityId: number, data: Partial<Jornal>) {
+    return this.api.post<Jornal>(this.base(farmId, parent, activityId), data);
   }
-  remove(farmId: number, cropId: number, activityId: number, id: number) {
-    return this.api.delete(`/farms/${farmId}/crops/${cropId}/activities/${activityId}/jornales/${id}`);
+  update(farmId: number, parent: { cropId?: number; batchId?: number }, activityId: number, id: number, data: Partial<Jornal>) {
+    return this.api.put<Jornal>(`${this.base(farmId, parent, activityId)}/${id}`, data);
+  }
+  remove(farmId: number, parent: { cropId?: number; batchId?: number }, activityId: number, id: number) {
+    return this.api.delete(`${this.base(farmId, parent, activityId)}/${id}`);
   }
 }
