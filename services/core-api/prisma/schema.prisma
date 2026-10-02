@@ -55,6 +55,42 @@ model Farm {
   workers          Worker[]
   transactions     Transaction[]
   livestockBatches LivestockBatch[]
+  members          FarmMember[]
+}
+
+// Colaboración multi-usuario: al crear una finca, su dueño también recibe
+// una fila aquí con role OWNER (fuente única para "quién tiene acceso" — no
+// solo Farm.userId). Farm.userId se conserva como respaldo de quién es el
+// creador original incluso si esa fila llegara a borrarse.
+model FarmMember {
+  id        Int            @id @default(autoincrement())
+  farmId    Int
+  userId    Int
+  role      FarmMemberRole @default(COLLABORATOR)
+  createdAt DateTime       @default(now())
+
+  farm Farm @relation(fields: [farmId], references: [id], onDelete: Cascade)
+
+  @@unique([farmId, userId])
+}
+
+enum FarmMemberRole {
+  OWNER
+  COLLABORATOR
+}
+
+// Registra qué digest de alertas ya se envió a quién, para no duplicar
+// correos si hay varias réplicas de core-api corriendo el cron a la vez —
+// la restricción única es la que hace esto seguro (la primera réplica en
+// insertar "gana", las demás chocan con el constraint y no reenvían).
+model NotificationLog {
+  id     Int      @id @default(autoincrement())
+  userId Int
+  farmId Int
+  date   DateTime
+  sentAt DateTime @default(now())
+
+  @@unique([userId, farmId, date])
 }
 
 model Crop {

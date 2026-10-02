@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { farmAccessWhere } = require('../utils/farmAccess');
 
 // La actividad padre puede colgar de un cultivo o de un lote de ganado (ver
 // activities.controller.js) — se chequea ownership por cualquiera de los dos.
@@ -7,8 +8,8 @@ const activityOwned = (activityId, userId) =>
     where: {
       id: Number(activityId),
       OR: [
-        { crop: { farm: { userId } } },
-        { livestockBatch: { farm: { userId } } },
+        { crop: { farm: farmAccessWhere(userId) } },
+        { livestockBatch: { farm: farmAccessWhere(userId) } },
       ],
     },
   });
@@ -55,8 +56,8 @@ exports.update = async (req, res, next) => {
         id: Number(req.params.id),
         activity: {
           OR: [
-            { crop: { farm: { userId: req.userId } } },
-            { livestockBatch: { farm: { userId: req.userId } } },
+            { crop: { farm: farmAccessWhere(req.userId) } },
+            { livestockBatch: { farm: farmAccessWhere(req.userId) } },
           ],
         },
       },
@@ -86,8 +87,8 @@ exports.remove = async (req, res, next) => {
         id: Number(req.params.id),
         activity: {
           OR: [
-            { crop: { farm: { userId: req.userId } } },
-            { livestockBatch: { farm: { userId: req.userId } } },
+            { crop: { farm: farmAccessWhere(req.userId) } },
+            { livestockBatch: { farm: farmAccessWhere(req.userId) } },
           ],
         },
       },

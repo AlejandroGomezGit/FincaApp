@@ -1,10 +1,11 @@
 const prisma = require('../config/prisma');
+const { farmAccessWhere } = require('../utils/farmAccess');
 const alertsService = require('../services/alerts.service');
 
 exports.list = async (req, res, next) => {
   try {
     const { farmId } = req.params;
-    const farm = await prisma.farm.findFirst({ where: { id: Number(farmId), userId: req.userId } });
+    const farm = await prisma.farm.findFirst({ where: { id: Number(farmId), ...farmAccessWhere(req.userId) } });
     if (!farm) return res.status(404).json({ message: 'Finca no encontrada' });
 
     const [rawActivities, crops, transactions, livestockBatches, mortalityRecords, productionRecords] = await Promise.all([

@@ -1,7 +1,8 @@
 const prisma = require('../config/prisma');
+const { farmAccessWhere } = require('../utils/farmAccess');
 
 const farmOwned = async (farmId, userId) =>
-  prisma.farm.findFirst({ where: { id: Number(farmId), userId } });
+  prisma.farm.findFirst({ where: { id: Number(farmId), ...farmAccessWhere(userId) } });
 
 exports.list = async (req, res, next) => {
   try {
@@ -20,7 +21,7 @@ exports.list = async (req, res, next) => {
 exports.get = async (req, res, next) => {
   try {
     const crop = await prisma.crop.findFirst({
-      where: { id: Number(req.params.id), farm: { userId: req.userId } },
+      where: { id: Number(req.params.id), farm: farmAccessWhere(req.userId) },
       include: {
         activities: { include: { _count: { select: { jornales: true } } }, orderBy: { startDate: 'desc' } },
         harvestProjections: { orderBy: { projectedDate: 'asc' } },
@@ -52,7 +53,7 @@ exports.create = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const crop = await prisma.crop.findFirst({ where: { id: Number(req.params.id), farm: { userId: req.userId } } });
+    const crop = await prisma.crop.findFirst({ where: { id: Number(req.params.id), farm: farmAccessWhere(req.userId) } });
     if (!crop) return res.status(404).json({ message: 'Cultivo no encontrado' });
 
     const { name, type, hectares, plantingDate, expectedHarvestDate, status, notes } = req.body;
@@ -72,7 +73,7 @@ exports.update = async (req, res, next) => {
 
 exports.remove = async (req, res, next) => {
   try {
-    const crop = await prisma.crop.findFirst({ where: { id: Number(req.params.id), farm: { userId: req.userId } } });
+    const crop = await prisma.crop.findFirst({ where: { id: Number(req.params.id), farm: farmAccessWhere(req.userId) } });
     if (!crop) return res.status(404).json({ message: 'Cultivo no encontrado' });
 
     await prisma.crop.delete({ where: { id: Number(req.params.id) } });

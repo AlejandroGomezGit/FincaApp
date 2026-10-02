@@ -1,10 +1,11 @@
 const prisma = require('../config/prisma');
 const { buildMonthlyBuckets } = require('../services/forecast.service');
+const { farmAccessWhere } = require('../utils/farmAccess');
 
 exports.list = async (req, res, next) => {
   try {
     const farms = await prisma.farm.findMany({
-      where: { userId: req.userId },
+      where: farmAccessWhere(req.userId),
       include: { _count: { select: { crops: true, workers: true, transactions: true } } },
       orderBy: { createdAt: 'desc' },
     });
@@ -15,7 +16,7 @@ exports.list = async (req, res, next) => {
 exports.get = async (req, res, next) => {
   try {
     const farm = await prisma.farm.findFirst({
-      where: { id: Number(req.params.id), userId: req.userId },
+      where: { id: Number(req.params.id), ...farmAccessWhere(req.userId) },
       include: {
         crops: { include: { _count: { select: { activities: true } } } },
         workers: { where: { active: true } },
@@ -35,7 +36,10 @@ exports.create = async (req, res, next) => {
     // weather-service, que lo resuelve solo (y de forma perezosa/auto-sanada)
     // la primera vez que se consulta el clima de esta finca.
     const farm = await prisma.farm.create({
-      data: { name, location, description, hectares: hectares ? Number(hectares) : null, userId: req.userId },
+      data: {
+        name, location, description, hectares: hectares ? Number(hectares) : null, userId: req.userId,
+        members: { create: { userId: req.userId, role: 'OWNER' } },
+      },
     });
     res.status(201).json(farm);
   } catch (err) { next(err); }
@@ -43,7 +47,7 @@ exports.create = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const farm = await prisma.farm.findFirst({ where: { id: Number(req.params.id), userId: req.userId } });
+    const farm = await prisma.farm.findFirst({ where: { id: Number(req.params.id), ...farmAccessWhere(req.userId) } });
     if (!farm) return res.status(404).json({ message: 'Finca no encontrada' });
 
     const { name, location, description, hectares } = req.body;
@@ -65,17 +69,16 @@ exports.update = async (req, res, next) => {
 
 exports.remove = async (req, res, next) => {
   try {
-    const farm = await prisma.farm.findFirst({ where: { id: Number(req.params.id), userId: req.userId } });
-    if (!farm) return res.status(404).json({ message: 'Finca no encontrada' });
-
-    await prisma.farm.delete({ where: { id: Number(req.params.id) } });
+    // req.farm ya viene verificado por el middleware requireFarmOwner —
+    // solo el dueño puede borrar la finca, no cualquier colaborador.
+    await prisma.farm.delete({ where: { id: req.farm.id } });
     res.status(204).send();
   } catch (err) { next(err); }
 };
 
 exports.ranking = async (req, res, next) => {
   try {
-    const farms = await prisma.farm.findMany({ where: { userId: req.userId } });
+    const farms = await prisma.farm.findMany({ where: farmAccessWhere(req.userId) });
 
     const withMetrics = await Promise.all(farms.map(async (farm) => {
       const transactions = await prisma.transaction.findMany({

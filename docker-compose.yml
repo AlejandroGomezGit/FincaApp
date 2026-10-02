@@ -40,7 +40,9 @@ services:
       JWT_SECRET: ${JWT_SECRET:?Debes definir JWT_SECRET en .env}
       JWT_ACCESS_EXPIRY: 15m
       JWT_REFRESH_EXPIRY_DAYS: 7
+      INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Debes definir INTERNAL_SERVICE_TOKEN en .env}
       PORT: 4001
+      INTERNAL_PORT: 4021
       CORS_ORIGINS: http://localhost:8080
       LOG_LEVEL: info
     depends_on:
@@ -54,6 +56,10 @@ services:
       timeout: 3s
       retries: 5
     networks: [fincaapp]
+    # El puerto 4021 (interno) NO se publica al host ni se expone por el
+    # gateway — solo es alcanzable por otros contenedores en la red
+    # "fincaapp" (en este caso, core-api, al invitar colaboradores a una
+    # finca). Ver internalApp.js.
 
   core-api:
     build: ./services/core-api
@@ -61,6 +67,7 @@ services:
       DATABASE_URL: postgresql://fincaapp:${POSTGRES_PASSWORD:-fincaapp_dev_password}@postgres:5432/finca_app
       JWT_SECRET: ${JWT_SECRET:?Debes definir JWT_SECRET en .env}
       INTERNAL_SERVICE_TOKEN: ${INTERNAL_SERVICE_TOKEN:?Debes definir INTERNAL_SERVICE_TOKEN en .env}
+      AUTH_SERVICE_INTERNAL_URL: http://auth-service:4021
       PORT: 4000
       INTERNAL_PORT: 4011
       CORS_ORIGINS: http://localhost:8080
@@ -70,6 +77,8 @@ services:
         condition: service_healthy
       migrate:
         condition: service_completed_successfully
+      auth-service:
+        condition: service_healthy
     healthcheck:
       test: ["CMD", "wget", "-qO-", "http://localhost:4000/health"]
       interval: 10s

@@ -1,7 +1,8 @@
 const prisma = require('../config/prisma');
+const { farmAccessWhere } = require('../utils/farmAccess');
 
 const farmOwned = (farmId, userId) =>
-  prisma.farm.findFirst({ where: { id: Number(farmId), userId } });
+  prisma.farm.findFirst({ where: { id: Number(farmId), ...farmAccessWhere(userId) } });
 
 exports.list = async (req, res, next) => {
   try {
@@ -20,7 +21,7 @@ exports.list = async (req, res, next) => {
 exports.get = async (req, res, next) => {
   try {
     const batch = await prisma.livestockBatch.findFirst({
-      where: { id: Number(req.params.id), farm: { userId: req.userId } },
+      where: { id: Number(req.params.id), farm: farmAccessWhere(req.userId) },
       include: {
         animals: { orderBy: { createdAt: 'desc' } },
         _count: { select: { activities: true, healthRecords: true, productionRecords: true } },
@@ -52,7 +53,7 @@ exports.create = async (req, res, next) => {
 
 exports.update = async (req, res, next) => {
   try {
-    const batch = await prisma.livestockBatch.findFirst({ where: { id: Number(req.params.id), farm: { userId: req.userId } } });
+    const batch = await prisma.livestockBatch.findFirst({ where: { id: Number(req.params.id), farm: farmAccessWhere(req.userId) } });
     if (!batch) return res.status(404).json({ message: 'Lote no encontrado' });
 
     const { name, species, purpose, quantity, acquisitionDate, status, notes } = req.body;
@@ -71,7 +72,7 @@ exports.update = async (req, res, next) => {
 
 exports.remove = async (req, res, next) => {
   try {
-    const batch = await prisma.livestockBatch.findFirst({ where: { id: Number(req.params.id), farm: { userId: req.userId } } });
+    const batch = await prisma.livestockBatch.findFirst({ where: { id: Number(req.params.id), farm: farmAccessWhere(req.userId) } });
     if (!batch) return res.status(404).json({ message: 'Lote no encontrado' });
 
     await prisma.livestockBatch.delete({ where: { id: Number(req.params.id) } });

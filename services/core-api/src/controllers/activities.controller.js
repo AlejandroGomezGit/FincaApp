@@ -1,4 +1,5 @@
 const prisma = require('../config/prisma');
+const { farmAccessWhere } = require('../utils/farmAccess');
 
 // Una actividad cuelga de un Crop O de un LivestockBatch — nunca ambos. El
 // helper de "dueño" del padre depende de cuál de los dos parámetros llega
@@ -6,18 +7,18 @@ const prisma = require('../config/prisma');
 // batchId cuando se monta bajo /livestock/:batchId/activities — ver
 // crops.routes.js y livestock.routes.js, que reutilizan este mismo router).
 const cropOwned = (cropId, userId) =>
-  prisma.crop.findFirst({ where: { id: Number(cropId), farm: { userId } } });
+  prisma.crop.findFirst({ where: { id: Number(cropId), farm: farmAccessWhere(userId) } });
 
 const batchOwned = (batchId, userId) =>
-  prisma.livestockBatch.findFirst({ where: { id: Number(batchId), farm: { userId } } });
+  prisma.livestockBatch.findFirst({ where: { id: Number(batchId), farm: farmAccessWhere(userId) } });
 
 const activityOwned = (id, userId) =>
   prisma.activity.findFirst({
     where: {
       id: Number(id),
       OR: [
-        { crop: { farm: { userId } } },
-        { livestockBatch: { farm: { userId } } },
+        { crop: { farm: farmAccessWhere(userId) } },
+        { livestockBatch: { farm: farmAccessWhere(userId) } },
       ],
     },
   });
@@ -59,8 +60,8 @@ exports.get = async (req, res, next) => {
       where: {
         id: Number(req.params.id),
         OR: [
-          { crop: { farm: { userId: req.userId } } },
-          { livestockBatch: { farm: { userId: req.userId } } },
+          { crop: { farm: farmAccessWhere(req.userId) } },
+          { livestockBatch: { farm: farmAccessWhere(req.userId) } },
         ],
       },
       include: {

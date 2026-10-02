@@ -4,6 +4,7 @@
 // Solo cambian el modelo de Prisma, los campos propios y el tipo de padre
 // (lote vs. animal individual). Evita repetir ese esqueleto 5 veces.
 const prisma = require('../config/prisma');
+const { farmAccessWhere } = require('./farmAccess');
 
 function coerce(value, type) {
   if (value === undefined) return undefined;
@@ -31,7 +32,7 @@ function buildData(body, fields) {
 // finca → lote.
 exports.createBatchRecordController = ({ model, fields, include }) => {
   const batchOwned = (batchId, userId) =>
-    prisma.livestockBatch.findFirst({ where: { id: Number(batchId), farm: { userId } } });
+    prisma.livestockBatch.findFirst({ where: { id: Number(batchId), farm: farmAccessWhere(userId) } });
 
   return {
     list: async (req, res, next) => {
@@ -60,7 +61,7 @@ exports.createBatchRecordController = ({ model, fields, include }) => {
     update: async (req, res, next) => {
       try {
         const existing = await prisma[model].findFirst({
-          where: { id: Number(req.params.id), batch: { farm: { userId: req.userId } } },
+          where: { id: Number(req.params.id), batch: farmAccessWhere(req.userId) },
         });
         if (!existing) return res.status(404).json({ message: 'Registro no encontrado' });
         const record = await prisma[model].update({
@@ -74,7 +75,7 @@ exports.createBatchRecordController = ({ model, fields, include }) => {
     remove: async (req, res, next) => {
       try {
         const existing = await prisma[model].findFirst({
-          where: { id: Number(req.params.id), batch: { farm: { userId: req.userId } } },
+          where: { id: Number(req.params.id), batch: farmAccessWhere(req.userId) },
         });
         if (!existing) return res.status(404).json({ message: 'Registro no encontrado' });
         await prisma[model].delete({ where: { id: Number(req.params.id) } });
@@ -88,7 +89,7 @@ exports.createBatchRecordController = ({ model, fields, include }) => {
 // ownership vía finca → lote → animal.
 exports.createAnimalRecordController = ({ model, fields, include }) => {
   const animalOwned = (animalId, userId) =>
-    prisma.animal.findFirst({ where: { id: Number(animalId), batch: { farm: { userId } } } });
+    prisma.animal.findFirst({ where: { id: Number(animalId), batch: farmAccessWhere(userId) } });
 
   return {
     list: async (req, res, next) => {
@@ -117,7 +118,7 @@ exports.createAnimalRecordController = ({ model, fields, include }) => {
     update: async (req, res, next) => {
       try {
         const existing = await prisma[model].findFirst({
-          where: { id: Number(req.params.id), animal: { batch: { farm: { userId: req.userId } } } },
+          where: { id: Number(req.params.id), animal: { batch: farmAccessWhere(req.userId) } },
         });
         if (!existing) return res.status(404).json({ message: 'Registro no encontrado' });
         const record = await prisma[model].update({
@@ -131,7 +132,7 @@ exports.createAnimalRecordController = ({ model, fields, include }) => {
     remove: async (req, res, next) => {
       try {
         const existing = await prisma[model].findFirst({
-          where: { id: Number(req.params.id), animal: { batch: { farm: { userId: req.userId } } } },
+          where: { id: Number(req.params.id), animal: { batch: farmAccessWhere(req.userId) } },
         });
         if (!existing) return res.status(404).json({ message: 'Registro no encontrado' });
         await prisma[model].delete({ where: { id: Number(req.params.id) } });

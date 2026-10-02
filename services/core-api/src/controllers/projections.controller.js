@@ -1,7 +1,8 @@
 const prisma = require('../config/prisma');
+const { farmAccessWhere } = require('../utils/farmAccess');
 
 const cropOwned = (cropId, userId) =>
-  prisma.crop.findFirst({ where: { id: Number(cropId), farm: { userId } } });
+  prisma.crop.findFirst({ where: { id: Number(cropId), farm: farmAccessWhere(userId) } });
 
 exports.list = async (req, res, next) => {
   try {
@@ -39,7 +40,7 @@ exports.create = async (req, res, next) => {
 exports.update = async (req, res, next) => {
   try {
     const proj = await prisma.harvestProjection.findFirst({
-      where: { id: Number(req.params.id), crop: { farm: { userId: req.userId } } },
+      where: { id: Number(req.params.id), crop: farmAccessWhere(req.userId) },
     });
     if (!proj) return res.status(404).json({ message: 'Proyección no encontrada' });
 
@@ -61,7 +62,7 @@ exports.update = async (req, res, next) => {
 exports.remove = async (req, res, next) => {
   try {
     const proj = await prisma.harvestProjection.findFirst({
-      where: { id: Number(req.params.id), crop: { farm: { userId: req.userId } } },
+      where: { id: Number(req.params.id), crop: farmAccessWhere(req.userId) },
     });
     if (!proj) return res.status(404).json({ message: 'Proyección no encontrada' });
 

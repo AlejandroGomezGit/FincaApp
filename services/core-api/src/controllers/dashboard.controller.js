@@ -1,9 +1,10 @@
 const prisma = require('../config/prisma');
+const { farmAccessWhere } = require('../utils/farmAccess');
 
 exports.summary = async (req, res, next) => {
   try {
     const { farmId } = req.params;
-    const farm = await prisma.farm.findFirst({ where: { id: Number(farmId), userId: req.userId } });
+    const farm = await prisma.farm.findFirst({ where: { id: Number(farmId), ...farmAccessWhere(req.userId) } });
     if (!farm) return res.status(404).json({ message: 'Finca no encontrada' });
 
     const now = new Date();
@@ -68,7 +69,7 @@ exports.summary = async (req, res, next) => {
 exports.monthlyBalance = async (req, res, next) => {
   try {
     const { farmId } = req.params;
-    const farm = await prisma.farm.findFirst({ where: { id: Number(farmId), userId: req.userId } });
+    const farm = await prisma.farm.findFirst({ where: { id: Number(farmId), ...farmAccessWhere(req.userId) } });
     if (!farm) return res.status(404).json({ message: 'Finca no encontrada' });
 
     const year = Number(req.query.year) || new Date().getFullYear();
@@ -101,7 +102,7 @@ exports.monthlyBalance = async (req, res, next) => {
 exports.activityCosts = async (req, res, next) => {
   try {
     const { farmId } = req.params;
-    const farm = await prisma.farm.findFirst({ where: { id: Number(farmId), userId: req.userId } });
+    const farm = await prisma.farm.findFirst({ where: { id: Number(farmId), ...farmAccessWhere(req.userId) } });
     if (!farm) return res.status(404).json({ message: 'Finca no encontrada' });
 
     const activities = await prisma.activity.findMany({

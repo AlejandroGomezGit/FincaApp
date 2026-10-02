@@ -8,6 +8,7 @@ const express = require('express');
 const prisma = require('./config/prisma');
 const internalAuth = require('./middleware/internalAuth');
 const errorHandler = require('./middleware/errorHandler');
+const { farmAccessWhere } = require('./utils/farmAccess');
 
 const app = express();
 
@@ -23,7 +24,7 @@ app.get('/internal/farms/:farmId/weather-context', async (req, res, next) => {
     const userId = Number(req.query.userId);
     if (!userId) return res.status(400).json({ message: 'userId requerido' });
 
-    const farm = await prisma.farm.findFirst({ where: { id: Number(farmId), userId } });
+    const farm = await prisma.farm.findFirst({ where: { id: Number(farmId), ...farmAccessWhere(userId) } });
     if (!farm) return res.status(404).json({ message: 'Finca no encontrada' });
 
     const today = new Date();

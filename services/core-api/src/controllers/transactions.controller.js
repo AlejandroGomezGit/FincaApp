@@ -1,7 +1,8 @@
 const prisma = require('../config/prisma');
+const { farmAccessWhere } = require('../utils/farmAccess');
 
 const farmOwned = (farmId, userId) =>
-  prisma.farm.findFirst({ where: { id: Number(farmId), userId } });
+  prisma.farm.findFirst({ where: { id: Number(farmId), ...farmAccessWhere(userId) } });
 
 const includeRefs = { crop: { select: { id: true, name: true } }, livestockBatch: { select: { id: true, name: true } } };
 
@@ -53,7 +54,7 @@ exports.create = async (req, res, next) => {
 exports.update = async (req, res, next) => {
   try {
     const tx = await prisma.transaction.findFirst({
-      where: { id: Number(req.params.id), farm: { userId: req.userId } },
+      where: { id: Number(req.params.id), farm: farmAccessWhere(req.userId) },
     });
     if (!tx) return res.status(404).json({ message: 'Transacción no encontrada' });
 
@@ -77,7 +78,7 @@ exports.update = async (req, res, next) => {
 exports.remove = async (req, res, next) => {
   try {
     const tx = await prisma.transaction.findFirst({
-      where: { id: Number(req.params.id), farm: { userId: req.userId } },
+      where: { id: Number(req.params.id), farm: farmAccessWhere(req.userId) },
     });
     if (!tx) return res.status(404).json({ message: 'Transacción no encontrada' });
 

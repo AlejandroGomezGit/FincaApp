@@ -1,7 +1,8 @@
 const prisma = require('../config/prisma');
+const { farmAccessWhere } = require('../utils/farmAccess');
 
 const farmOwned = (farmId, userId) =>
-  prisma.farm.findFirst({ where: { id: Number(farmId), userId } });
+  prisma.farm.findFirst({ where: { id: Number(farmId), ...farmAccessWhere(userId) } });
 
 exports.list = async (req, res, next) => {
   try {
@@ -31,7 +32,7 @@ exports.create = async (req, res, next) => {
 exports.update = async (req, res, next) => {
   try {
     const worker = await prisma.worker.findFirst({
-      where: { id: Number(req.params.id), farm: { userId: req.userId } },
+      where: { id: Number(req.params.id), farm: farmAccessWhere(req.userId) },
     });
     if (!worker) return res.status(404).json({ message: 'Trabajador no encontrado' });
 
@@ -47,7 +48,7 @@ exports.update = async (req, res, next) => {
 exports.remove = async (req, res, next) => {
   try {
     const worker = await prisma.worker.findFirst({
-      where: { id: Number(req.params.id), farm: { userId: req.userId } },
+      where: { id: Number(req.params.id), farm: farmAccessWhere(req.userId) },
     });
     if (!worker) return res.status(404).json({ message: 'Trabajador no encontrado' });
 
